@@ -1,0 +1,9 @@
+import os
+
+#C0000000000にテストチャンネルIDを入れれば本番環境以外でテスト可能
+RAG_CHANNEL_ID = os.environ.get("RAG_CHANNEL_ID", "C0000000000")
+ACCOUNTING_CHANNEL_ID = os.environ.get("ACCOUNTING_CHANNEL_ID", "C0000000000")
+
+ALLOWED_MENTION_CHANNELS = [
+    RAG_CHANNEL_ID
+]

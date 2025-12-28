@@ -1,0 +1,9 @@
+flask
+slack-bolt
+slack-sdk
+gspread
+google-auth
+openai
+requests
+pinecone
+gunicorn
