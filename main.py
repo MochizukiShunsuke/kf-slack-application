@@ -9,10 +9,10 @@ logging.basicConfig(level=logging.INFO)
 
 
 def register_listeners(app):
-    from listeners.message_router import register_message_router
-    from listeners.command_router import register_command_router
-    from listeners.app_mention_router import register_app_mention_router
-    from listeners.view_router import register_view_router
+    from routers.message_router import register_message_router
+    from routers.command_router import register_command_router
+    from routers.app_mention_router import register_app_mention_router
+    from routers.view_router import register_view_router
 
     register_message_router(app)
     register_command_router(app)
@@ -25,12 +25,14 @@ app = App(
     process_before_response=True 
 )
 
-# 登録関数を呼び出し
 register_listeners(app)
 
-# Flask アダプター
 flask_app = Flask(__name__)
 handler = SlackRequestHandler(app)
+
+@flask_app.route("/ping", methods=["GET"])
+def ping():
+    return "ok", 200
 
 @flask_app.route("/slack/events", methods=["POST"])
 def slack_events():
@@ -38,6 +40,13 @@ def slack_events():
     if retry_num and retry_num != "0":
         return "OK"
     return handler.handle(request)
+
+
+@flask_app.route("/jobs/activity-report", methods=["POST"])
+def activity_report_job_route():
+    from listeners.jobs_listener import handle_activity_report_job
+    return handle_activity_report_job()
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))

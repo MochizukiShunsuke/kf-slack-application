@@ -1,14 +1,14 @@
 import os
 import gspread
 import google.auth
+import logging
 
-
+logger = logging.getLogger(__name__)
 
 
 # ============================================================
 # 1. 接続設定・認証
 # ============================================================
-
 
 def get_connection():
     """Google Cloudの自動認証を使って接続"""
@@ -16,13 +16,9 @@ def get_connection():
     credentials, project_id = google.auth.default(scopes=scopes)
     return gspread.authorize(credentials)
 
-
-
-
 # ============================================================
 # 2. メンション機能用 (参照系)
 # ============================================================
-
 
 def get_trigger_rules():
     print("Fetching Rules...")
@@ -45,13 +41,11 @@ def get_trigger_rules():
             if trigger:
                 rules_map[trigger] = channels
         return rules_map
-    except Exception as e:
-        print(f"Rules Error: {e}")
-        return {}
-
+    except Exception:
+        logger.exception("Get Trigger Rules Error")
+        return None
 
 def get_all_members():
-    print("Fetching Members...")
     try:
         client = get_connection()
         sheet_id = os.environ.get("MEMBER_MANAGER_SHEET_ID")
@@ -67,27 +61,18 @@ def get_all_members():
                 "tags": clean_tags
             })
         return member_list
-    except Exception as e:
-        print(f"Member Error: {e}")
-        return []
-
-
-
+    except Exception:
+        logger.exception("Get All Members Error")
+        return None
 
 # ============================================================
 # 3. 会計機能：書き込み (支出・収入)
 # ============================================================
 
-
 def add_expenditure_entry(data):
-    """会計用スプシに書き込み (ずれを修正)"""
     try:
         client = get_connection()
         sheet_id = os.environ.get("ACCOUNTING_SHEET_ID")
-        
-        if not sheet_id:
-            print("Error: ACCOUNTING_SHEET_ID is missing.")
-            return False
 
         spreadsheet = client.open_by_key(sheet_id)
         sheet = spreadsheet.worksheet("支出") 
@@ -105,15 +90,11 @@ def add_expenditure_entry(data):
         
         sheet.append_row(row, value_input_option="USER_ENTERED")
         return True
-    except Exception as e:
-        import traceback
-        print(f"Expenditure Write Error: {e}")
-        traceback.print_exc()
+    except Exception:
+        logger.exception("Add Expenditure Entry Error")
         return False
 
-
 def add_other_income_entry(data):
-    print(f"[DEBUG] Adding other income: {data}")
     try:
         client = get_connection()
         sheet_id = os.environ.get("ACCOUNTING_SHEET_ID")
@@ -127,20 +108,15 @@ def add_other_income_entry(data):
         
         sheet.append_row(row, value_input_option="USER_ENTERED")
         return True
-    except Exception as e:
-        print(f"[DEBUG] Other Income Write Error: {e}")
+    except Exception:
+        logger.exception("Add Other Income Entry Error")
         return False
-
-
-
 
 # ============================================================
 # 4. 会計機能：読み取り (部費支払い)
 # ============================================================
 
-
 def get_payment_status(name):
-    print(f"--- [DEBUG] START: get_payment_status for '{name}' ---")
     try:
         client = get_connection()
         sheet_id = os.environ.get("ACCOUNTING_SHEET_ID")
@@ -193,13 +169,46 @@ def get_payment_status(name):
                 print(f"[DEBUG] Checking {m} (Col: {m_idx}): Value = '{val}'")
                 if val:
                     paid_details.append(f"● {m}：{val}")
-
         print(f"--- [DEBUG] END: Found {len(paid_details)} entries ---")
         return paid_details
+    except Exception:
+        logger.exception("Get Payment Status Error")
+        return None
 
-    except Exception as e:
-        print(f"[DEBUG] EXCEPTION: {e}")
-        import traceback
-        traceback.print_exc()
-        return []
-    
+# ============================================================
+# 5. 近況活動報告担当者催促
+# ============================================================
+
+def get_activity_report_mentions(month_str):
+    try:
+        client = get_connection()
+        sheet_id = os.environ.get("ACTIVITY_REPORT_SHEET_ID")
+        spreadsheet = client.open_by_key(sheet_id)
+        sheet_monthly = spreadsheet.worksheet("担当者一覧")
+        all_values = sheet_monthly.get_all_values()
+        target_row = None
+
+        for row in all_values[1:]:
+            if str(row[0]).strip() == month_str:
+                target_row = row
+                break
+        
+        if not target_row:
+            print(f"No assignees found for month: {month_str}")
+            return ""
+        
+        assignee_names = [name for name in target_row[1:8] if name.strip()]
+        sheet_members = spreadsheet.worksheet("メンバーID対応表")
+        member_records = sheet_members.get_all_records()
+        
+        mentions = []
+        for name in assignee_names:
+            m = next((m for m in member_records if str(m.get("名前")).strip() == str(name).strip()), None)
+            if m and m.get("メンバーID"):
+                raw_id = str(m["メンバーID"]).replace('"', '').strip()
+                mention = f"<@{raw_id}>" if not raw_id.startswith("<@") else raw_id
+                mentions.append(mention)
+        return " ".join(mentions)
+    except Exception:
+        logger.exception("Get Activity Report Mentions Error")
+        return None
