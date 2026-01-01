@@ -3,17 +3,15 @@ import logging
 from flask import Flask, request
 from slack_bolt import App
 from slack_bolt.adapter.flask import SlackRequestHandler
-
+from routers.message_router import register_message_router
+from routers.command_router import register_command_router
+from routers.app_mention_router import register_app_mention_router
+from routers.view_router import register_view_router
+from listeners.jobs_listener import handle_activity_report_job
 
 logging.basicConfig(level=logging.INFO)
 
-
 def register_listeners(app):
-    from routers.message_router import register_message_router
-    from routers.command_router import register_command_router
-    from routers.app_mention_router import register_app_mention_router
-    from routers.view_router import register_view_router
-
     register_message_router(app)
     register_command_router(app)
     register_app_mention_router(app)
@@ -44,7 +42,6 @@ def slack_events():
 
 @flask_app.route("/jobs/activity-report", methods=["POST"])
 def activity_report_job_route():
-    from listeners.jobs_listener import handle_activity_report_job
     return handle_activity_report_job()
 
 

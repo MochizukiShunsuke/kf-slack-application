@@ -20,5 +20,5 @@ def handle_rag_submission_lazy(view, body):
         )
     except Exception:
         logger.exception("Handle Rag Submission Lazy Error")
-        send_slack_message(channel=user_id, text=f"⚠️ 検索エラーです。もう一度やり直すか責任者に問い合わせてください。")
+        send_slack_message(channel=user_id, text=f"⚠️ 検索エラーです。もう一度やり直すか管理者に問い合わせてください。")
         return None

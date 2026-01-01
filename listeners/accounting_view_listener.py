@@ -1,11 +1,16 @@
 from features.accounting_feature import (
     get_receipt_input_view, get_manual_expense_view, 
-    get_membership_fee_view, get_other_income_view,
-    process_receipt_workflow
+    get_membership_fee_status_view, get_membership_fee_payment_name_view,
+    get_membership_fee_payment_data_view, get_other_income_view, process_receipt_workflow
 )
-from services.sheet_service import add_expenditure_entry
-from services.sheet_service import get_payment_status
-from services.sheet_service import add_other_income_entry
+from services.sheet_service import (
+    add_expenditure_entry,
+    get_payment_status,
+    add_other_income_entry,
+    add_membership_fee_payment,
+    get_unpaid_months,
+    get_member_name_by_id
+)
 import threading
 import logging
 
@@ -22,8 +27,10 @@ def handle_menu_selection(ack, body, client):
             ack(response_action="update", view=get_receipt_input_view())
         elif selected_menu == "manual_expense":
             ack(response_action="update", view=get_manual_expense_view())
-        elif selected_menu == "membership_fee":
-            ack(response_action="update", view=get_membership_fee_view())
+        elif selected_menu == "membership_fee_status":
+            ack(response_action="update", view=get_membership_fee_status_view())
+        elif selected_menu == "membership_fee_payment":
+            ack(response_action="update", view=get_membership_fee_payment_name_view())
         elif selected_menu == "other_income":
             ack(response_action="update", view=get_other_income_view())
         else:
@@ -123,7 +130,6 @@ def handle_manual_expense_submission(ack, body, client):
         
         def save():
             try:
-                #from services.sheet_service import add_expenditure_entry
                 if add_expenditure_entry(final_data):
                     client.chat_postMessage(channel=user_id, text=f"✅ 支出の記帳が完了しました: {final_data['内容']} ¥{total:,}")
                 else:
@@ -136,7 +142,6 @@ def handle_manual_expense_submission(ack, body, client):
     except Exception:
         logger.exception("Handle Manual Expense Submission Error")
         return
-
 
 def handle_receipt_input(ack, body, client):
     try:
@@ -175,49 +180,119 @@ def handle_receipt_input(ack, body, client):
         logger.exception("Handle Receipt Input Error")
         return
 
-
-def handle_membership_fee_submission(ack, body, client):
+def handle_membership_fee_status_submission(ack, body, client):
     try:
         view_state = body["view"]["state"]["values"]
         user_id = body["user"]["id"]
-        
         selected_user = view_state.get("user_selection_block", {}).get("user_action", {}).get("selected_user")
-        manual_name = view_state.get("manual_name_block", {}).get("name_action", {}).get("value")
-
-        if not selected_user and not manual_name:
-            ack(response_action="errors", errors={"manual_name_block": "名前を入力または選択してください"})
-            return
-        ack()
-        search_name = manual_name
-        display_name = manual_name
+        search_name = get_member_name_by_id(selected_user)
         
-        # ユーザー選択優先
-        if not manual_name and selected_user:
-            res = client.users_info(user=selected_user)
-            if res["ok"]:
-                search_name = res["user"]["real_name"]
-                display_name = f"<@{selected_user}> ({search_name})"
-
-        #from services.sheet_service import get_payment_status
+        if not search_name:
+            ack(response_action="errors", errors={
+                "user_selection_block": "「メンバーID対応表」に登録されていません。管理者に確認してください。"
+            })
+            return
+        
+        ack()
+        
         paid_list = get_payment_status(search_name)
-
         message_blocks = [
-            {"type": "header", "text": {"type": "plain_text", "text": "📊 部費支払い状況確認"}},
-            {"type": "section", "text": {"type": "mrkdwn", "text": f"対象者: *{display_name}* さん"}},
+            {"type": "header", "text": {"type": "plain_text", "text": "📊 部費支払い確認"}},
+            {"type": "section", "text": {"type": "mrkdwn", "text": f"対象者: <@{selected_user}> ({search_name}) さん"}},
             {"type": "divider"}
         ]
         
-        if not paid_list:
-            message_blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": f"⚠️ *「{search_name}」さんのデータが見つかりませんでした。*"}})
+        if paid_list is None:
+            message_blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": f"⚠️「{search_name}」さんの行が部費名簿に見つかりませんでした。"}})
+        elif not paid_list:
+            message_blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": "✅ 支払い履歴はありません（未払い、またはデータ未登録です）。"}})
         else:
             history = "\n".join([f"✅ {item}" for item in paid_list])
             message_blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": f"*支払い済み履歴:*\n{history}"}})
 
         client.chat_postMessage(channel=user_id, blocks=message_blocks)
     except Exception:
-        logger.exception("Handle Membership Fee Submission Error")
-        return
+        logger.exception("Handle Membership Fee Status Submission Error")
 
+def handle_membership_fee_payment_name_submission(ack, body, client):
+    try:
+        view_state = body["view"]["state"]["values"]
+        selected_user = view_state.get("user_selection_block", {}).get("user_action", {}).get("selected_user")
+        search_name = get_member_name_by_id(selected_user)
+        
+        if not search_name:
+            ack(response_action="errors", errors={
+                "user_selection_block": "「メンバーID対応表」に登録されていません。管理者に確認してください。"
+            })
+            return
+        unpaid_months = get_unpaid_months(search_name)
+        if unpaid_months is None:
+            ack(response_action="errors", errors={
+                "user_selection_block": f"「{search_name}」さんが部費名簿（収入シート）に見つかりませんでした。"
+            })
+            return
+        display_name = f"<@{selected_user}> ({search_name})"
+        new_view = get_membership_fee_payment_data_view(display_name, search_name, unpaid_months, selected_user)
+        ack(response_action="update", view=new_view)
+    except Exception:
+        logger.exception("Handle Membership Fee Payment Name Submission Error")
+
+def handle_membership_fee_payment_final_submission(ack, body, client):
+    try:
+        view = body["view"]
+        view_state = view["state"]["values"]
+        user_id = body["user"]["id"]
+        metadata = view.get("private_metadata", "")
+
+        if "|" in metadata:
+            search_name, selected_user = metadata.split("|")
+        else:
+            search_name = metadata
+            selected_user = None
+        
+        selected_options = view_state["month_block"]["month_select"]["selected_options"]
+        selected_months = [opt["value"] for opt in selected_options]
+        
+        payment_date = view_state["date_block"]["date_input"]["selected_date"].replace("-", "/")
+        
+        if not selected_months or "done" in selected_months:
+            ack(response_action="errors", errors={"month_block": "支払い対象の月を選択してください"})
+            return
+        ack()
+        def save():
+            try:
+                success_months = []
+                failed_months = []
+                
+                for month in selected_months:
+                    if add_membership_fee_payment(search_name, month, payment_date):
+                        success_months.append(month)
+                    else:
+                        failed_months.append(month)
+                
+                if success_months:
+                    months_str = "、".join(success_months)
+                    message_blocks = [
+                        {"type": "header", "text": {"type": "plain_text", "text": "💰 部費支払い入力"}},
+                        {"type": "section", "text": {"type": "mrkdwn", "text": f"対象者: <@{selected_user}> ({search_name}) さん\n月：{months_str}\n支払日：{payment_date}"}},
+                        {"type": "divider"}
+                    ]
+                    client.chat_postMessage(channel=user_id, blocks=message_blocks)
+                
+                if failed_months:
+                    failed_str = "、".join(failed_months)
+                    client.chat_postMessage(
+                        channel=user_id, 
+                        text=f"⚠️ 以下の月の記録に失敗しました：{failed_str}"
+                    )
+            except Exception:
+                logger.exception("Save Thread (Multi-Month Payment) Error")
+                client.chat_postMessage(channel=user_id, text="❌ 記録処理中にエラーが発生しました。")
+        import threading
+        threading.Thread(target=save).start()
+    except Exception:
+        logger.exception("Handle Membership Fee Payment Final Submission Error")
+        return
 
 def handle_other_income_submission(ack, body, client):
     try:
@@ -229,7 +304,6 @@ def handle_other_income_submission(ack, body, client):
             "金額": f"¥{int(view_state['amount']['value']['value']):,}"
         }
         ack()
-        #from services.sheet_service import add_other_income_entry
         success = add_other_income_entry(data)
         
         client.chat_postMessage(

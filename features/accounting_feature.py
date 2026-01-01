@@ -1,6 +1,4 @@
 from datetime import datetime
-from services.sheet_service import add_expenditure_entry, add_other_income_entry, get_payment_status
-from datetime import datetime
 import logging
 
 logger = logging.getLogger(__name__)
@@ -158,44 +156,88 @@ def get_manual_expense_view(item_count=1, current_state=None):
             "blocks": blocks
         }
 
-def get_membership_fee_view():
+def get_membership_fee_status_view():
     return {
         "type": "modal",
-        "callback_id": "membership_fee_submission",
+        "callback_id": "membership_fee_status_submission",
         "title": {"type": "plain_text", "text": "部費支払い確認"},
         "submit": {"type": "plain_text", "text": "確認"},
         "close": {"type": "plain_text", "text": "戻る"},
         "blocks": [
             {
                 "type": "section",
-                "text": {"type": "mrkdwn", "text": "確認したい部員を選択するか、直接名前を入力してください。"}
+                "text": {"type": "mrkdwn", "text": "確認したい部員を選択してください。"}
             },
             {
                 "type": "input",
                 "block_id": "user_selection_block",
-                "optional": True,
-                "label": {"type": "plain_text", "text": "Slackユーザーから選択"},
+                "label": {"type": "plain_text", "text": "部員を選択"},
                 "element": {
                     "type": "users_select",
                     "placeholder": {"type": "plain_text", "text": "ユーザーを選択"},
                     "action_id": "user_action"
                 }
-            },
+            }
+        ]
+    }
+
+def get_membership_fee_payment_name_view():
+    """部費支払い入力(1/2)：Slackメンバー選択のみ"""
+    return {
+        "type": "modal",
+        "callback_id": "membership_fee_payment_name_submission",
+        "title": {"type": "plain_text", "text": "部費支払い入力(1/2)"},
+        "submit": {"type": "plain_text", "text": "次へ"},
+        "close": {"type": "plain_text", "text": "戻る"},
+        "blocks": [
+            {"type": "section", "text": {"type": "mrkdwn", "text": "支払った部員を選択してください。"}},
             {
                 "type": "input",
-                "block_id": "manual_name_block",
-                "optional": True,
-                "label": {"type": "plain_text", "text": "手動入力 (Slackにいない場合)"},
+                "block_id": "user_selection_block",
+                "label": {"type": "plain_text", "text": "部員を選択"},
                 "element": {
-                    "type": "plain_text_input",
-                    "action_id": "name_action",
-                    "placeholder": {"type": "plain_text", "text": "例：山田 太郎"}
+                    "type": "users_select",
+                    "action_id": "user_action",
+                    "placeholder": {"type": "plain_text", "text": "ユーザーを選択"}
                 }
+            }
+        ]
+    }
+
+def get_membership_fee_payment_data_view(display_name, search_name, unpaid_months, selected_user):
+    today = datetime.now().strftime("%Y-%m-%d")
+    options = [{"text": {"type": "plain_text", "text": m}, "value": m} for m in unpaid_months]
+    
+    if not options:
+        options = [{"text": {"type": "plain_text", "text": "全ての月が支払い済みです"}, "value": "done"}]
+
+    return {
+        "type": "modal",
+        "callback_id": "membership_fee_payment_final_submission",
+        "private_metadata": f"{search_name}|{selected_user}",
+        "title": {"type": "plain_text", "text": "部費支払い入力(2/2)"},
+        "submit": {"type": "plain_text", "text": "送信"},
+        "blocks": [
+            {"type": "section", "text": {"type": "mrkdwn", "text": f"対象者: *{display_name}* さん"}},
+            {
+                "type": "input", "block_id": "month_block",
+                "label": {"type": "plain_text", "text": "支払い対象の月 (複数選択可)"},
+                "element": {
+                    "type": "multi_static_select",
+                    "action_id": "month_select",
+                    "options": options,
+                    "placeholder": {"type": "plain_text", "text": "月を選択してください"}
+                }
+            },
+            {
+                "type": "input", "block_id": "date_block",
+                "label": {"type": "plain_text", "text": "支払日"},
+                "element": {"type": "datepicker", "action_id": "date_input", "initial_date": today}
             },
             {
                 "type": "context",
                 "elements": [
-                    {"type": "mrkdwn", "text": "※両方入力された場合は手動入力が優先されます。"}
+                    {"type": "mrkdwn", "text": "※選択したすべての月に対して、上記の日付を「支払日」として一括記録します。"}
                 ]
             }
         ]

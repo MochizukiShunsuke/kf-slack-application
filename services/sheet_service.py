@@ -94,6 +94,46 @@ def add_expenditure_entry(data):
         logger.exception("Add Expenditure Entry Error")
         return False
 
+def add_membership_fee_payment(name, month, payment_date):
+    try:
+        if not name: return False
+        
+        client = get_connection()
+        sheet_id = os.environ.get("ACCOUNTING_SHEET_ID")
+        spreadsheet = client.open_by_key(sheet_id)
+        sheet = spreadsheet.worksheet("部費収入")
+        all_values = sheet.get_all_values()
+        
+        if len(all_values) < 4: return False
+        headers = all_values[2]
+        
+        search_name = name.replace(" ", "").replace("　", "")
+        name_col_idx = headers.index("名前") if "名前" in headers else 2
+        
+        row_index = -1
+        for i, row in enumerate(all_values[3:], start=4):
+            if len(row) > name_col_idx:
+                clean_row_name = str(row[name_col_idx]).replace(" ", "").replace("　", "")
+                if clean_row_name == search_name:
+                    row_index = i
+                    break
+        
+        if row_index == -1: return False
+        
+        zen_month = month.translate(str.maketrans('0123456789', '０１２３４５６７８９'))
+        col_index = -1
+        for idx, h in enumerate(headers, start=1):
+            if h == month or h == zen_month:
+                col_index = idx
+                break
+        
+        if col_index == -1: return False
+        sheet.update_cell(row_index, col_index, payment_date)
+        return True
+    except Exception:
+        logger.exception("Add Membership Fee Payment Error")
+        return False
+
 def add_other_income_entry(data):
     try:
         client = get_connection()
@@ -173,6 +213,71 @@ def get_payment_status(name):
         return paid_details
     except Exception:
         logger.exception("Get Payment Status Error")
+        return None
+
+def get_unpaid_months(name):
+    try:
+        if not name: return None
+        
+        client = get_connection()
+        sheet_id = os.environ.get("ACCOUNTING_SHEET_ID")
+        spreadsheet = client.open_by_key(sheet_id)
+        sheet = spreadsheet.worksheet("部費収入")
+        all_values = sheet.get_all_values()
+        
+        if len(all_values) < 4: return None
+        headers = all_values[2]
+        rows = all_values[3:]
+        
+        search_name = name.replace(" ", "").replace("　", "")
+        name_col_idx = headers.index("名前") if "名前" in headers else 2
+        
+        user_row = None
+        for row in rows:
+            if len(row) > name_col_idx:
+                clean_row_name = str(row[name_col_idx]).replace(" ", "").replace("　", "")
+                if clean_row_name == search_name:
+                    user_row = row
+                    break
+        
+        if not user_row: return None
+        
+        months = ["9月", "10月", "11月", "12月", "1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月"]
+        unpaid_months = []
+
+        for m in months:
+            zen_m = m.translate(str.maketrans('0123456789', '０１２３４５６７８９'))
+            m_idx = next((idx for idx, h in enumerate(headers) if h == m or h == zen_m), -1)
+            
+            if m_idx != -1:
+                val = str(user_row[m_idx]).strip() if m_idx < len(user_row) else ""
+                if not val:
+                    unpaid_months.append(m)
+        
+        return unpaid_months
+    except Exception:
+        logger.exception("Get Unpaid Months Error")
+        return None
+
+def get_member_name_by_id(slack_user_id):
+    try:
+        client = get_connection()
+        sheet_id = os.environ.get("MEMBER_MANAGER_SHEET_ID")
+        spreadsheet = client.open_by_key(sheet_id)
+        sheet = spreadsheet.sheet1 
+        data = sheet.get_all_values()
+
+        if len(data) < 2: return None
+        
+        for row in data[1:]:
+            if len(row) < 2: continue
+            target_id = str(row[1]).replace('"', '').strip()
+            if target_id == slack_user_id:
+                official_name = str(row[0]).replace(" ", "").replace("　", "").strip()
+                return official_name
+        return None
+    except Exception:
+        logger.exception("Get Member Name By ID Error")
         return None
 
 # ============================================================

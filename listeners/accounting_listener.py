@@ -19,7 +19,8 @@ def handle_accounting_from_command(ack, body, client):
                         "options": [
                             {"text": {"type": "plain_text", "text": "📷 レシート画像認識"}, "value": "image_recognition"},
                             {"text": {"type": "plain_text", "text": "📝 支出を手動入力"}, "value": "manual_expense"},
-                            {"text": {"type": "plain_text", "text": "💰 部費支払い確認"}, "value": "membership_fee"},
+                            {"text": {"type": "plain_text", "text": "📊 部費支払い確認"}, "value": "membership_fee_status"},
+                            {"text": {"type": "plain_text", "text": "💰 部費支払い入力"}, "value": "membership_fee_payment"},
                             {"text": {"type": "plain_text", "text": "💸 その他収入入力"}, "value": "other_income"}
                         ]
                     }

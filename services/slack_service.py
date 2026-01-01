@@ -14,7 +14,7 @@ def download_slack_file(client, file_id):
         response = requests.get(url, headers={'Authorization': f'Bearer {token}'})
         if response.status_code == 200:
             return response.content
-        # ステータスコードが200以外（Slack側のエラー）の場合
+        # ステータスコード200以外（Slack側のエラー）の場合
         logger.error(f"Slack Download API Error: {response.status_code}")
         return None 
     except Exception:
