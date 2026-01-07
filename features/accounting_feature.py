@@ -1,3 +1,8 @@
+from services.slack_service import download_slack_file
+from services.openai_service import analyze_receipt
+from services.sheet_service import add_expenditure_entry
+import json
+import re
 from datetime import datetime
 import logging
 
@@ -19,7 +24,7 @@ SECTION_OPTIONS = [
 
 # --- UI生成ロジック ---
 
-def get_receipt_input_view():
+def get_receipt_input_view_from_command():
     return {
         "type": "modal",
         "callback_id": "accounting_receipt_input",
@@ -28,6 +33,33 @@ def get_receipt_input_view():
         "close": {"type": "plain_text", "text": "戻る"},
         "blocks": [
             {"type": "input", "block_id": "receipt", "label": {"type": "plain_text", "text": "レシート画像"}, "element": {"type": "file_input", "action_id": "file"}},
+            {"type": "input", "block_id": "category", "label": {"type": "plain_text", "text": "種類"}, "element": {"type": "static_select", "action_id": "value", "options": [{"text": {"type": "plain_text", "text": "車両製作費"}, "value": "vehicle"}, {"text": {"type": "plain_text", "text": "移動費"}, "value": "travel"}, {"text": {"type": "plain_text", "text": "設備費"}, "value": "equipment"}, {"text": {"type": "plain_text", "text": "活動費"}, "value": "activity"}, {"text": {"type": "plain_text", "text": "その他"}, "value": "other"}]}},
+            {"type": "input", "block_id": "section_block", "optional": True, "label": {"type": "plain_text", "text": "セクション"}, "element": {"type": "static_select", "action_id": "value", "options": SECTION_OPTIONS}},
+            {"type": "input", "block_id": "payer", "label": {"type": "plain_text", "text": "支払者"}, "element": {"type": "plain_text_input", "action_id": "value"}},
+            {"type": "input", "block_id": "settlement", "optional": True, "label": {"type": "plain_text", "text": "精算"}, "element": {"type": "radio_buttons", "action_id": "value", "options": [{"text": {"type": "plain_text", "text": "✅ 精算済み"}, "value": "true"}, {"text": {"type": "plain_text", "text": "❎ 未精算"}, "value": "false"}]}}
+        ]
+    }
+
+###試作###
+def get_receipt_input_view_from_shortcut(file_id: str):
+    """メッセージショートカット専用：添付ファイルIDを引き継いでモーダルを表示"""
+    return {
+        "type": "modal",
+        "callback_id": "accounting_receipt_input_shortcut",
+        "title": {"type": "plain_text", "text": "支出入力(レシート画像認識)"},
+        "submit": {"type": "plain_text", "text": "送信"},
+        "close": {"type": "plain_text", "text": "戻る"},
+        "private_metadata": json.dumps({
+            "file_id": file_id
+        }),
+        "blocks": [
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "📎 投稿元に添付されたファイルを使用します"
+                }
+            },
             {"type": "input", "block_id": "category", "label": {"type": "plain_text", "text": "種類"}, "element": {"type": "static_select", "action_id": "value", "options": [{"text": {"type": "plain_text", "text": "車両製作費"}, "value": "vehicle"}, {"text": {"type": "plain_text", "text": "移動費"}, "value": "travel"}, {"text": {"type": "plain_text", "text": "設備費"}, "value": "equipment"}, {"text": {"type": "plain_text", "text": "活動費"}, "value": "activity"}, {"text": {"type": "plain_text", "text": "その他"}, "value": "other"}]}},
             {"type": "input", "block_id": "section_block", "optional": True, "label": {"type": "plain_text", "text": "セクション"}, "element": {"type": "static_select", "action_id": "value", "options": SECTION_OPTIONS}},
             {"type": "input", "block_id": "payer", "label": {"type": "plain_text", "text": "支払者"}, "element": {"type": "plain_text_input", "action_id": "value"}},
@@ -281,19 +313,20 @@ def get_other_income_view(current_state=None):
 
 def process_receipt_workflow(client, user_id, file_id, metadata):
     try:
-        from services.slack_service import download_slack_file
-        from services.openai_service import analyze_receipt
-        from services.sheet_service import add_expenditure_entry
-
+        file_info = client.files_info(file=file_id).get("file", {})
+        mimetype = file_info.get("mimetype", "image/jpeg")        
         image_content = download_slack_file(client, file_id)
         if not image_content:
-            client.chat_postMessage(channel=user_id, text="⚠️ 画像の取得に失敗しました。")
+            client.chat_postMessage(channel=user_id, text="⚠️ ファイルの取得に失敗しました。")
             return
-
-        ai_data = analyze_receipt(image_content)
+        
+        ai_data = analyze_receipt(image_content, mimetype=mimetype)
         if not ai_data:
             client.chat_postMessage(channel=user_id, text="⚠️ レシートの解析に失敗しました。")
             return
+        
+        raw_amount = str(ai_data.get("金額", "0"))
+        clean_amount = int(re.sub(r"\D", "", raw_amount) or 0)
 
         settlement_label = "〇" if metadata["settlement"] == "true" else "✕" if metadata["settlement"] == "false" else ""
         
@@ -303,7 +336,7 @@ def process_receipt_workflow(client, user_id, file_id, metadata):
             "セクション": metadata["section"],
             "内容": ai_data.get("内容", ""),
             "内訳": ai_data.get("内訳", ""),
-            "金額": f"¥{int(ai_data.get("金額", "")):,}",
+            "金額": f"¥{clean_amount:,}",
             "支払者": metadata["payer"],
             "精算": settlement_label
         }
@@ -312,7 +345,7 @@ def process_receipt_workflow(client, user_id, file_id, metadata):
         if success:
             client.chat_postMessage(
                 channel=user_id, 
-                text=f"✅ 画像認識での記帳が完了しました：{final_entry['内容']} {final_entry['内訳']} {final_entry['金額']}"
+                text=f"✅ 解析と記帳が完了しました：{final_entry['内容']} {final_entry['金額']}"
             )
         else:
             client.chat_postMessage(channel=user_id, text="⚠️ 保存に失敗しました。")

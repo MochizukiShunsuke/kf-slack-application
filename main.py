@@ -3,10 +3,15 @@ import logging
 from flask import Flask, request
 from slack_bolt import App
 from slack_bolt.adapter.flask import SlackRequestHandler
+
+# ルーター
 from routers.message_router import register_message_router
 from routers.command_router import register_command_router
 from routers.app_mention_router import register_app_mention_router
 from routers.view_router import register_view_router
+from routers.shortcut_router import register_shortcut_router
+
+# リスナー
 from listeners.jobs_listener import handle_activity_report_job
 
 logging.basicConfig(level=logging.INFO)
@@ -16,6 +21,7 @@ def register_listeners(app):
     register_command_router(app)
     register_app_mention_router(app)
     register_view_router(app)
+    register_shortcut_router(app)
 
 app = App(
     token=os.environ.get("SLACK_BOT_TOKEN"),
@@ -39,11 +45,9 @@ def slack_events():
         return "OK"
     return handler.handle(request)
 
-
 @flask_app.route("/jobs/activity-report", methods=["POST"])
 def activity_report_job_route():
     return handle_activity_report_job()
-
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))

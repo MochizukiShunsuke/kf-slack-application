@@ -7,3 +7,5 @@ openai
 requests
 pinecone
 gunicorn
+pymupdf
+Pillow

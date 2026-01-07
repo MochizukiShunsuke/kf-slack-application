@@ -1,7 +1,8 @@
 from features.accounting_feature import (
-    get_receipt_input_view, get_manual_expense_view, 
-    get_membership_fee_status_view, get_membership_fee_payment_name_view,
-    get_membership_fee_payment_data_view, get_other_income_view, process_receipt_workflow
+    get_receipt_input_view_from_command, get_receipt_input_view_from_shortcut,
+    get_manual_expense_view, get_membership_fee_status_view, 
+    get_membership_fee_payment_name_view, get_membership_fee_payment_data_view, 
+    get_other_income_view, process_receipt_workflow
 )
 from services.sheet_service import (
     add_expenditure_entry,
@@ -11,6 +12,7 @@ from services.sheet_service import (
     get_unpaid_months,
     get_member_name_by_id
 )
+import json
 import threading
 import logging
 
@@ -24,7 +26,7 @@ def handle_menu_selection(ack, body, client):
         selected_menu = view_state["menu_block"]["menu_action"]["selected_option"]["value"]
 
         if selected_menu == "image_recognition":
-            ack(response_action="update", view=get_receipt_input_view())
+            ack(response_action="update", view=get_receipt_input_view_from_command())
         elif selected_menu == "manual_expense":
             ack(response_action="update", view=get_manual_expense_view())
         elif selected_menu == "membership_fee_status":
@@ -143,7 +145,7 @@ def handle_manual_expense_submission(ack, body, client):
         logger.exception("Handle Manual Expense Submission Error")
         return
 
-def handle_receipt_input(ack, body, client):
+def handle_receipt_input_from_command(ack, body, client):
     try:
         view_state = body["view"]["state"]["values"]
         user_id = body["user"]["id"]
@@ -288,7 +290,6 @@ def handle_membership_fee_payment_final_submission(ack, body, client):
             except Exception:
                 logger.exception("Save Thread (Multi-Month Payment) Error")
                 client.chat_postMessage(channel=user_id, text="❌ 記録処理中にエラーが発生しました。")
-        import threading
         threading.Thread(target=save).start()
     except Exception:
         logger.exception("Handle Membership Fee Payment Final Submission Error")
@@ -313,3 +314,34 @@ def handle_other_income_submission(ack, body, client):
     except Exception:
         logger.exception("Handle Other Income Submission Error")
         return
+
+def handle_receipt_shortcut_submission(ack, body, client):
+    ack()
+    try:
+        user_id = body["user"]["id"]
+        state = body["view"]["state"]["values"]
+        metadata = json.loads(body["view"]["private_metadata"])
+        file_id = metadata["file_id"]
+        
+        category_opt = state["category"]["value"]["selected_option"]
+        category = category_opt["text"]["text"] if category_opt else "その他"
+        section_opt = state.get("section_block", {}).get("value", {}).get("selected_option")
+        section = section_opt["text"]["text"] if section_opt else ""
+        payer = state["payer"]["value"]["value"]
+        settlement_opt = state.get("settlement", {}).get("value", {}).get("selected_option")
+        settlement = settlement_opt["value"] if settlement_opt else "null"
+
+        client.chat_postMessage(channel=user_id, text="📥 解析を開始しました。完了までお待ちください。")
+        
+        threading.Thread(
+            target=process_receipt_workflow,
+            args=(client, user_id, file_id, {
+                "category": category,
+                "section": section,
+                "payer": payer,
+                "settlement": settlement
+            }),
+            daemon=True
+        ).start()
+    except Exception:
+        logger.exception("Handle Receipt Shortcut Submission Error")

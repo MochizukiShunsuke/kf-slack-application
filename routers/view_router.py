@@ -2,7 +2,8 @@ from listeners.accounting_view_listener import (
     handle_menu_selection,
     handle_modal_update,
     handle_manual_expense_submission,
-    handle_receipt_input,
+    handle_receipt_input_from_command,
+    handle_receipt_shortcut_submission,
     handle_membership_fee_status_submission,
     handle_membership_fee_payment_name_submission,
     handle_membership_fee_payment_final_submission,
@@ -26,7 +27,10 @@ def register_view_router(app):
     
     # 3. 各機能の最終送信（Submit）
     app.view("manual_expense_submission")(handle_manual_expense_submission)
-    app.view("accounting_receipt_input")(handle_receipt_input)
+    app.view("accounting_receipt_input")(handle_receipt_input_from_command)
+
+    app.view("accounting_receipt_input_shortcut")(handle_receipt_shortcut_submission)
+
     app.view("membership_fee_status_submission")(handle_membership_fee_status_submission)
     app.view("membership_fee_payment_final_submission")(handle_membership_fee_payment_final_submission)
     app.view("other_income_submission")(handle_other_income_submission)

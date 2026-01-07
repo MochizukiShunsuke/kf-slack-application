@@ -1,16 +1,45 @@
 import os
 import base64
-from openai import OpenAI
+import io
 import logging
+import fitz
+from PIL import Image
+from openai import OpenAI
 
 logger = logging.getLogger(__name__)
-
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
-def analyze_receipt(image_content):
-    print("---Analyze Image Start---")
+def analyze_receipt(file_content, mimetype="image/jpeg"):
+    print(f"---Analyze {mimetype} Start---")
     try:
-        base64_image = base64.b64encode(image_content).decode('utf-8')
+        if mimetype == "application/pdf":
+            try:
+                doc = fitz.open(stream=file_content, filetype="pdf")
+                page = doc.load_page(0)
+                pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
+                file_content = pix.tobytes("jpeg")
+                mimetype = "image/jpeg"
+                doc.close()
+                print("---Converted PDF to JPEG---")
+            except Exception as e:
+                logger.error(f"PDF conversion failed: {e}")
+                return None
+        
+        supported_mimetypes = ["image/jpeg", "image/png", "image/webp", "image/gif"]
+        if mimetype not in supported_mimetypes:
+            try:
+                img = Image.open(io.BytesIO(file_content))
+                img = img.convert("RGB")
+                buffer = io.BytesIO()
+                img.save(buffer, format="JPEG")
+                file_content = buffer.getvalue()
+                mimetype = "image/jpeg"
+                print("---Converted Image to JPEG---")
+            except Exception as e:
+                logger.warning(f"Image conversion failed: {e}")
+        
+        base64_data = base64.b64encode(file_content).decode('utf-8')
+        
         prompt = """あなたはレシート画像を解析し、構造化データを返すAPIです。
     以下の情報を抽出して、以下のようにデータを成形してください。
 
@@ -29,6 +58,7 @@ def analyze_receipt(image_content):
     "内容": "DCM (プラダン、接着剤)",
     "内訳": "877円x2+1,408円",
     "金額": ¥3,162"""
+
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
@@ -39,7 +69,7 @@ def analyze_receipt(image_content):
                         {
                             "type": "image_url",
                             "image_url": {
-                                "url": f"data:image/jpeg;base64,{base64_image}"
+                                "url": f"data:{mimetype};base64,{base64_data}"
                             }
                         },
                     ],

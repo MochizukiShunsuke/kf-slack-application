@@ -10,7 +10,7 @@ def handle_rag_from_app_mention(event, say, client):
     ts = event["ts"]
     text = event.get("text", "")
     try:
-        client.reactions_add(channel=channel_id, timestamp=ts, name="処理中")
+        client.reactions_add(channel=channel_id, timestamp=ts, name="ロード中")
         
         query = re.sub(r"<@.*?>", "", text).strip()
         if not query:
@@ -24,7 +24,7 @@ def handle_rag_from_app_mention(event, say, client):
             blocks=answer_blocks,
             thread_ts=ts
         )
-        client.reactions_remove(channel=channel_id, timestamp=ts, name="処理中")
+        client.reactions_remove(channel=channel_id, timestamp=ts, name="ロード中")
     except Exception:
         logger.exception("Handle Rag From App Mention Error")
         send_slack_message(channel=channel_id, text=f"⚠️ 検索エラーです。もう一度やり直すか責任者に問い合わせてください。", thread_ts=ts)
@@ -37,7 +37,7 @@ def handle_rag_from_command(ack, body, client):
         view={
             "type": "modal",
             "callback_id": "rag_question_submission",
-            "title": {"type": "plain_text", "text": "AI ドキュメント検索"},
+            "title": {"type": "plain_text", "text": "レギュレーション回答 -試作-"},
             "blocks": [
                 {
                     "type": "input",
