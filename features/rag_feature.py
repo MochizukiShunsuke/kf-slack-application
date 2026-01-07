@@ -1,7 +1,7 @@
 from services.rag_service import run_rag_flow
 
-def get_rag_response_blocks(query_text):
-    response = run_rag_flow(query_text)
+def get_rag_response_blocks(query_text, chat_history=None):
+    response = run_rag_flow(query_text, chat_history)
     
     delimiter = "【参照ソース（関連度スコア順 Top 5）】"
     if delimiter in response:

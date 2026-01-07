@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 def handle_rag_from_app_mention(event, say, client):
     channel_id = event["channel"]
     ts = event["ts"]
+    thread_ts = event.get("thread_ts")
     text = event.get("text", "")
     try:
         client.reactions_add(channel=channel_id, timestamp=ts, name="ロード中")
@@ -17,7 +18,21 @@ def handle_rag_from_app_mention(event, say, client):
             say(text="質問内容を入力してください。", thread_ts=ts)
             return
         
-        answer_blocks = get_rag_response_blocks(query)
+
+        chat_history = []
+        if thread_ts:
+            replies = client.conversations_replies(channel=channel_id, ts=thread_ts)
+            for message in replies["messages"]:
+                if message["ts"] == ts:
+                    continue
+                
+                role = "assistant" if "bot_id" in message else "user"
+                content = re.sub(r"<@.*?>", "", message.get("text", "")).strip()
+                
+                if content:
+                    chat_history.append({"role": role, "content": content})
+
+        answer_blocks = get_rag_response_blocks(query, chat_history)
         send_slack_message(
             channel=channel_id,
             text=f"AI回答: {query[:20]}...",

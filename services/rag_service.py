@@ -10,7 +10,7 @@ openai_client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 pc = Pinecone(api_key=os.environ.get("PINECONE_API_KEY"))
 index = pc.Index(os.environ.get("PINECONE_INDEX_NAME"))
 
-def run_rag_flow(query_text):
+def run_rag_flow(query_text, chat_history=None):
     try:
         query_vector = openai_client.embeddings.create(
             input=query_text,
@@ -67,12 +67,19 @@ def run_rag_flow(query_text):
     ...
     """
 
+        messages = [{"role": "system", "content": system_prompt}]
+
+        if chat_history:
+            messages.extend(chat_history)
+
+        messages.append({
+            "role": "user", 
+            "content": f"## コンテキスト（スコア付き）:\n{combined_context}\n\n## 質問:\n{query_text}"
+        })
+
         response = openai_client.chat.completions.create(
             model="gpt-4o", 
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"## コンテキスト（スコア付き）:\n{combined_context}\n\n## 質問:\n{query_text}"}
-            ],
+            messages=messages,
             temperature=0
         )
         
