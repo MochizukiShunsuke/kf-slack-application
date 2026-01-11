@@ -3,6 +3,8 @@ import logging
 from flask import Flask, request
 from slack_bolt import App
 from slack_bolt.adapter.flask import SlackRequestHandler
+from google.cloud import firestore
+from flask_cors import CORS
 
 # ルーター
 from routers.message_router import register_message_router
@@ -10,18 +12,15 @@ from routers.command_router import register_command_router
 from routers.app_mention_router import register_app_mention_router
 from routers.view_router import register_view_router
 from routers.shortcut_router import register_shortcut_router
+from routers.zoom_router import register_zoom_router
 
 # リスナー
 from listeners.jobs_listener import handle_activity_report_job
 
-logging.basicConfig(level=logging.INFO)
+# サービス
+from services.openai_service import summarize_text
 
-def register_listeners(app):
-    register_message_router(app)
-    register_command_router(app)
-    register_app_mention_router(app)
-    register_view_router(app)
-    register_shortcut_router(app)
+logging.basicConfig(level=logging.INFO)
 
 app = App(
     token=os.environ.get("SLACK_BOT_TOKEN"),
@@ -29,10 +28,25 @@ app = App(
     process_before_response=True 
 )
 
-register_listeners(app)
+def register_listeners(app, flask_app, db):
+    register_message_router(app)
+    register_command_router(app)
+    register_app_mention_router(app)
+    register_view_router(app)
+    register_shortcut_router(app)
+    register_zoom_router(flask_app, db)
 
 flask_app = Flask(__name__)
+CORS(flask_app)
 handler = SlackRequestHandler(app)
+db = firestore.Client(database="zoom-logs")
+
+@app.middleware
+def inject_db(context, next):
+    context["db"] = db
+    next()
+
+register_listeners(app, flask_app, db)
 
 @flask_app.route("/ping", methods=["GET"])
 def ping():

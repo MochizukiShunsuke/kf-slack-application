@@ -40,9 +40,7 @@ def get_receipt_input_view_from_command():
         ]
     }
 
-###試作###
 def get_receipt_input_view_from_shortcut(file_id: str):
-    """メッセージショートカット専用：添付ファイルIDを引き継いでモーダルを表示"""
     return {
         "type": "modal",
         "callback_id": "accounting_receipt_input_shortcut",

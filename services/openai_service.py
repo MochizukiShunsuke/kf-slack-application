@@ -90,3 +90,66 @@ def analyze_receipt(file_content, mimetype="image/jpeg"):
     except Exception:
         logger.exception("Analyze Receipt Error")
         return None
+
+
+
+def summarize_text(full_text):
+    """
+    長文の会議ログを、Slackで見やすい書式で要約する (gpt-4o-mini対応版)
+    """
+    MAX_CHUNK_LENGTH = 20000 
+    
+    # 1回で処理できる長さの場合
+    if len(full_text) <= MAX_CHUNK_LENGTH:
+        return call_openai_api(full_text, get_final_instruction())
+
+    # --- 分割処理 (Mapステップ) ---
+    chunks = [full_text[i:i + MAX_CHUNK_LENGTH] for i in range(0, len(full_text), MAX_CHUNK_LENGTH)]
+    partial_summaries = []
+    
+    for i, chunk in enumerate(chunks):
+        # 中間要約は情報を落としすぎないように指示
+        summary = call_openai_api(chunk, "このセクションの議論内容と決定事項を箇条書きで整理してください。")
+        partial_summaries.append(summary)
+
+    # --- 統合・文脈調整ステップ (Reduceステップ) ---
+    combined_summary = "\n\n--- 次のセクション ---\n\n".join(partial_summaries)
+    return call_openai_api(combined_summary, get_final_instruction())
+
+def get_final_instruction():
+    """
+    Slackで見やすくするための専用指示（プロンプト）
+    """
+    return (
+        "以下の会議ログ（または分割要約）を、Slackで読みやすい形式に統合して要約してください。\n\n"
+        "*【Slack専用の書式ルール】*\n"
+        "1. 見出しに '#' は絶対に使わず、 *太字* で表現してください。\n"
+        "2. 太字はアスタリスク1つで挟む *太字* にしてください（**太字** はNGです）。\n"
+        "3. 箇条書きは '-' を使用し、適宜インデント（スペース2つ）を入れてください。\n"
+        "4. 適宜、内容に合った『絵文字』を文頭に入れて視認性を高めてください。\n\n"
+        "【構成案】\n"
+        "📢 *会議の全体概要*\n"
+        "（ここに1行で概要）\n\n"
+        "📝 *主なトピックと議論内容*\n"
+        "（ここにトピックごとの箇条書き）\n\n"
+        "✅ *決定事項・ネクストアクション*\n"
+        "（ここを最重要として3点に絞る）"
+    )
+
+def call_openai_api(text, instruction):
+    """
+    OpenAI APIを呼び出す共通関数
+    """
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini", # 高速・大容量・低価格
+            messages=[
+                {"role": "system", "content": "あなたは優秀な議事録作成アシスタントです。出力はすべてSlackのmrkdwn形式で行います。"},
+                {"role": "user", "content": f"{instruction}\n\n{text}"}
+            ],
+            temperature=0.3
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        logging.error(f"OpenAI API Error: {e}")
+        return f"要約エラーが発生しました: {e}"

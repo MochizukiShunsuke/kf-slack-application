@@ -9,3 +9,5 @@ pinecone
 gunicorn
 pymupdf
 Pillow
+google-cloud-firestore
+flask-cors
