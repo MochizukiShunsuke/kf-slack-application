@@ -1,0 +1,13 @@
+flask
+slack-bolt
+slack-sdk
+gspread
+google-auth
+openai
+requests
+pinecone
+gunicorn
+pymupdf
+Pillow
+google-cloud-firestore
+flask-cors
