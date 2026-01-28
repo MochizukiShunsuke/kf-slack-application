@@ -1,0 +1,50 @@
+# ===== Secrets / Env =====
+.env
+.env.*
+*.env
+
+# ===== Credentials =====
+*credential*
+*secret*
+*token*
+*.pem
+*.key
+
+# ===== JSON =====
+*.json
+!*.example.json
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyc
+venv/
+.venv/
+ENV/
+env/
+build/
+dist/
+*.egg-info/
+
+# ===== RAG / Vector DB =====
+chroma/
+storage/
+index/
+*.db
+*.sqlite
+*.sqlite3
+*.pkl
+*.npy
+
+# ===== Logs / Temp =====
+*.log
+logs/
+tmp/
+.cache/
+
+# ===== IDE / OS =====
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
