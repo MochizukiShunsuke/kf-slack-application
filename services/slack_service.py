@@ -6,6 +6,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 def download_slack_file(client, file_id):
+    print("slack_service.download_slack_file...")
     try:
         file_info = client.files_info(file=file_id)
         url = file_info['file']['url_private_download']
@@ -22,6 +23,7 @@ def download_slack_file(client, file_id):
         return None
     
 def send_slack_message(channel, text, blocks=None, thread_ts=None):
+    print("slack_service.send_slack_message...")
     try:
         token = os.environ.get("SLACK_BOT_TOKEN")
         client = WebClient(token=token)
@@ -36,7 +38,7 @@ def send_slack_message(channel, text, blocks=None, thread_ts=None):
         return None
     
 def upload_slack_file(channel_id, file_content, title, filename, comment=None):
-    """Slackにファイルをアップロードする"""
+    print("slack_service.upload_slack_file...")
     try:
         token = os.environ.get("SLACK_BOT_TOKEN")
         client = WebClient(token=token)

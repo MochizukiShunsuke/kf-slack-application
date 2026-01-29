@@ -26,7 +26,7 @@ def get_connection():
 # ============================================================
 
 def get_trigger_rules():
-    print("get_trigger_rules...")
+    print("sheet_service.get_trigger_rules...")
     try:
         client = get_connection()
         # configから取得
@@ -51,9 +51,9 @@ def get_trigger_rules():
         return None
 
 def get_all_members():
+    print("sheet_service.get_all_members...")
     try:
         client = get_connection()
-        # configから取得
         sheet = client.open_by_key(MEMBER_MANAGER_SHEET_ID).worksheet("Members") 
         records = sheet.get_all_records()
         
@@ -75,9 +75,9 @@ def get_all_members():
 # ============================================================
 
 def add_expenditure_entry(data):
+    print("sheet_service.add_expenditure_entry...")
     try:
         client = get_connection()
-        # configから取得
         spreadsheet = client.open_by_key(ACCOUNTING_SHEET_ID)
         sheet = spreadsheet.worksheet("支出") 
         
@@ -104,11 +104,11 @@ def add_expenditure_entry(data):
         return False
 
 def add_membership_fee_payment(name, month, payment_date):
+    print("sheet_service.add_membership_fee_payment...")
     try:
         if not name: return False
         
         client = get_connection()
-        # configから取得
         spreadsheet = client.open_by_key(ACCOUNTING_SHEET_ID)
         sheet = spreadsheet.worksheet("部費収入")
         all_values = sheet.get_all_values()
@@ -144,9 +144,9 @@ def add_membership_fee_payment(name, month, payment_date):
         return False
 
 def add_other_income_entry(data):
+    print("sheet_service.add_other_income_entry...")
     try:
         client = get_connection()
-        # configから取得
         spreadsheet = client.open_by_key(ACCOUNTING_SHEET_ID)
         sheet = spreadsheet.worksheet("その他収入")
         row = [
@@ -166,9 +166,9 @@ def add_other_income_entry(data):
 # ============================================================
 
 def get_payment_status(name):
+    print("sheet_service.get_payment_status...")
     try:
         client = get_connection()
-        # configから取得
         spreadsheet = client.open_by_key(ACCOUNTING_SHEET_ID)
         sheet = spreadsheet.worksheet("部費収入")
         all_values = sheet.get_all_values()
@@ -218,11 +218,11 @@ def get_payment_status(name):
         return None
 
 def get_unpaid_months(name):
+    print("sheet_service.get_unpaid_months...")
     try:
         if not name: return None
         
         client = get_connection()
-        # configから取得
         spreadsheet = client.open_by_key(ACCOUNTING_SHEET_ID)
         sheet = spreadsheet.worksheet("部費収入")
         all_values = sheet.get_all_values()
@@ -262,9 +262,9 @@ def get_unpaid_months(name):
         return None
 
 def get_member_name_by_id(slack_user_id):
+    print("sheet_service.get_member_name_by_id...")
     try:
         client = get_connection()
-        # configから取得
         spreadsheet = client.open_by_key(MEMBER_MANAGER_SHEET_ID)
         sheet = spreadsheet.sheet1 
         data = sheet.get_all_values()
@@ -287,9 +287,9 @@ def get_member_name_by_id(slack_user_id):
 # ============================================================
 
 def get_activity_report_mentions(month_str):
+    print("sheet_service.get_activity_report_mentions...")
     try:
         client = get_connection()
-        # configから取得
         spreadsheet = client.open_by_key(ACTIVITY_REPORT_SHEET_ID)
         sheet_monthly = spreadsheet.worksheet("担当者一覧")
         all_values = sheet_monthly.get_all_values()
@@ -321,22 +321,14 @@ def get_activity_report_mentions(month_str):
         return None
 
 def get_detailed_member_list():
-    """
-    活動報告書用にメンバーの詳細情報(名前, パート, 役職, 学年)を取得する
-    想定シート構成: A列=名前, B列=パート, C列=学年, D列=役職
-    """
+    print("sheet_service.get_detailed_member_list...")
     try:
         client = get_connection()
-        # MEMBER_MANAGER_SHEET_ID の "Members" シートなどを参照すると仮定
-        # もし専用のシートがある場合は worksheet名を変更してください
         sheet = client.open_by_key(MEMBER_MANAGER_SHEET_ID).worksheet("Members")
         all_values = sheet.get_all_values()
-        
-        # ヘッダー行(1行目)をスキップ
         members = []
         if len(all_values) > 1:
             for row in all_values[1:]:
-                # 列数が足りない場合のガード
                 name = row[0] if len(row) > 0 else ""
                 part = row[1] if len(row) > 1 else "Unknown"
                 grade = row[2] if len(row) > 2 else ""
@@ -355,20 +347,13 @@ def get_detailed_member_list():
         return []
     
 def get_member_department_map():
-    """
-    MemberManagerシートから {名前: Department} の辞書を作成して返す
-    想定ヘッダー: Name, MemberID, Tags, Department
-    """
+    print("sheet_service.get_member_department_map...")
     try:
         client = get_connection()
         sheet = client.open_by_key(MEMBER_MANAGER_SHEET_ID).worksheet("Members")
-        
-        # ヘッダー行を使って辞書リストとして取得 (A列=Name, D列=Department を自動判定)
         records = sheet.get_all_records()
-        
         member_map = {}
         for row in records:
-            # 空白除去などのクリーニング
             name = str(row.get("Name", "")).replace(" ", "").replace("　", "")
             dept = str(row.get("Department", "")).strip()
             

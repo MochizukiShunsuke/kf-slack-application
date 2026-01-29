@@ -13,7 +13,7 @@ def get_drive_service():
     return build('drive', 'v3', credentials=creds)
 
 def download_file_to_stream(file_id: str) -> io.BytesIO:
-    """ファイルをバイナリとしてメモリ上にダウンロード"""
+    print("drive_service.download_file_to_stream...")
     try:
         service = get_drive_service()
         request = service.files().get_media(fileId=file_id)
@@ -25,11 +25,11 @@ def download_file_to_stream(file_id: str) -> io.BytesIO:
         file_stream.seek(0)
         return file_stream
     except Exception as e:
-        logger.error(f"Failed to download file {file_id}: {e}")
+        logger.exception("Download File To Stream Error")
         raise e
 
 def read_text_from_docx_stream(file_stream: io.BytesIO) -> str:
-    """.docxファイルのバイナリストリームからテキストを抽出する"""
+    print("drive_service.read_text_from_docx_stream...")
     try:
         doc = Document(file_stream)
         full_text = []
@@ -37,12 +37,12 @@ def read_text_from_docx_stream(file_stream: io.BytesIO) -> str:
             if para.text.strip():
                 full_text.append(para.text.strip())
         return "\n".join(full_text)
-    except Exception as e:
-        logger.warning(f"Failed to read docx content: {e}")
+    except Exception:
+        logger.exception("Read Text From Docx Stream Error")
         return ""
 
 def list_files_in_folder(folder_id: str):
-    """指定フォルダ内のファイル一覧(id, name)を取得する"""
+    print("drive_service.list_files_in_folder...")
     try:
         service = get_drive_service()
         query = f"'{folder_id}' in parents and trashed = false"
@@ -52,15 +52,12 @@ def list_files_in_folder(folder_id: str):
             pageSize=100
         ).execute()
         return results.get('files', [])
-    except Exception as e:
-        logger.error(f"Failed to list files in folder {folder_id}: {e}")
+    except Exception:
+        logger.exception("List Files In Folder Error")
         return []
 
 def search_files_with_sort(query_str: str, limit=7):
-    """
-    クエリで検索し、ファイル名でソートして返す
-    例: "01_...", "02_..." の順にするため
-    """
+    print("drive_service.search_files_with_sort...")
     try:
         service = get_drive_service()
         results = service.files().list(
@@ -70,22 +67,18 @@ def search_files_with_sort(query_str: str, limit=7):
         ).execute()
         
         files = results.get('files', [])
-        # ~$で始まる一時ファイルを除外し、名前順にソート
         valid_files = [f for f in files if not f['name'].startswith('~$')]
         sorted_files = sorted(valid_files, key=lambda x: x['name'])
         
         return sorted_files[:limit]
-    except Exception as e:
-        logger.error(f"Failed to search files: {e}")
+    except Exception:
+        logger.exception("Search Files With Sort Error")
         return []
 
 def search_image_by_name(folder_id: str, member_name: str):
-    """
-    指定フォルダから「名前.jpg」「名前.png」などを探してダウンロードストリームを返す
-    """
+    print("drive_service.search_image_by_name...")
     try:
         service = get_drive_service()
-        # 名前が含まれる画像ファイルを検索
         query = f"'{folder_id}' in parents and name contains '{member_name}' and mimeType contains 'image/' and trashed = false"
         results = service.files().list(
             q=query,
@@ -98,12 +91,12 @@ def search_image_by_name(folder_id: str, member_name: str):
             return None
             
         return download_file_to_stream(files[0]['id'])
-    except Exception as e:
-        logger.error(f"Failed to search image for {member_name}: {e}")
+    except Exception:
+        logger.exception("Search Image By Name Error")
         return None
 
 def export_google_doc_text(file_id: str) -> str:
-    """Google Docをテキスト形式でエクスポート"""
+    print("drive_service.export_google_doc_text...")
     try:
         service = get_drive_service()
         request = service.files().export_media(fileId=file_id, mimeType='text/plain')
@@ -113,6 +106,24 @@ def export_google_doc_text(file_id: str) -> str:
         while not done:
             status, done = downloader.next_chunk()
         return file_stream.getvalue().decode('utf-8')
-    except Exception as e:
-        logger.warning(f"Failed to export doc {file_id}: {e}")
+    except Exception:
+        logger.exception("Export Google Doc Text Error")
         return ""
+    
+def find_folder_by_name(parent_id: str, folder_name: str):
+    try:
+        service = get_drive_service()
+        query = f"'{parent_id}' in parents and name = '{folder_name}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
+        results = service.files().list(
+            q=query,
+            fields="files(id, name)",
+            pageSize=1
+        ).execute()
+        
+        files = results.get('files', [])
+        if files:
+            return files[0]['id']
+        return None
+    except Exception:
+        logger.exception("Find Folder By Name Error")
+        return None

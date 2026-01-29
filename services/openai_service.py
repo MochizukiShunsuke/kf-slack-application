@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
 def analyze_receipt(file_content, mimetype="image/jpeg"):
-    print(f"---Analyze {mimetype} Start---")
+    print(f"openai_service.analyze_receipt... : ---Analyze {mimetype} Start---")
     try:
         if mimetype == "application/pdf":
             try:
@@ -92,12 +92,14 @@ def analyze_receipt(file_content, mimetype="image/jpeg"):
         return None
 
 def create_embedding(text):
+    print("openai_service.create_embedding...")
     return client.embeddings.create(
         input=text,
         model="text-embedding-3-small"
     ).data[0].embedding
 
 def create_chat_completion(messages, model="gpt-5-nano", temperature=1):
+    print("openai_service.create_chat_completion...")
     response = client.chat.completions.create(
         model=model,
         messages=messages,
@@ -106,6 +108,7 @@ def create_chat_completion(messages, model="gpt-5-nano", temperature=1):
     return response.choices[0].message.content
 
 def summarize_text(full_text):
+    print("openai_service.summarize_text...")
     MAX_CHUNK_LENGTH = 20000 
     
     if len(full_text) <= MAX_CHUNK_LENGTH:
@@ -123,6 +126,7 @@ def summarize_text(full_text):
     return call_openai_api(combined_summary, get_final_instruction())
 
 def get_final_instruction():
+    print("openai_service.get_final_instruction...")
     return (
         "あなたは学生フォーミュラ（SAE）チームの技術秘書です。以下のルールに従い、乱雑な会議ログを整理してください。\n\n"
         "*【技術用語の補正ルール】*\n"
@@ -145,6 +149,7 @@ def get_final_instruction():
     )
 
 def call_openai_api(text, instruction):
+    print("openai_service.call_openai_api...")
     try:
         response = client.chat.completions.create(
             model="gpt-5-nano",
@@ -156,5 +161,5 @@ def call_openai_api(text, instruction):
         )
         return response.choices[0].message.content
     except Exception as e:
-        logging.error(f"OpenAI API Error: {e}")
-        return f"要約エラーが発生しました: {e}"
+        logger.exception("Call OpenAI API Error")
+        return f"OpenAI API Error : {e}"
