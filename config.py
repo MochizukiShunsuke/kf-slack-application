@@ -2,7 +2,7 @@ import os
 
 # ===== Environment =====
 ENV = os.environ.get("ENV")
-# ローカル開発などでENV未設定の場合のフォールバックが必要なら修正してください
+# ローカル開発などでENV未設定の場合のフォールバックが必要なら修正
 # if ENV not in ("production", "development"):
 #     raise RuntimeError(f"ENV is not set correctly: {ENV}")
 

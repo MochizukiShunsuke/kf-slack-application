@@ -2,7 +2,6 @@ import gspread
 import google.auth
 import logging
 
-# ConfigからIDをインポート
 from config import (
     MEMBER_MANAGER_SHEET_ID,
     ACCOUNTING_SHEET_ID,
@@ -29,7 +28,6 @@ def get_trigger_rules():
     print("sheet_service.get_trigger_rules...")
     try:
         client = get_connection()
-        # configから取得
         sheet = client.open_by_key(MEMBER_MANAGER_SHEET_ID).worksheet("Rules")
         records = sheet.get_all_records()
         
@@ -364,3 +362,54 @@ def get_member_department_map():
     except Exception:
         logger.exception("Get Member Department Map Error")
         return {}
+    
+def get_member_name_from_slack_id(slack_id):
+    try:
+        client = get_connection()
+        spreadsheet = client.open_by_key(MEMBER_MANAGER_SHEET_ID)
+        sheet = spreadsheet.worksheet("Members") 
+        records = sheet.get_all_records()
+
+        for row in records:
+            if str(row.get("MemberID", "")).strip() == slack_id:
+                return str(row.get("Name", "")).strip()
+        
+        return None
+    except Exception as e:
+        logger.error(f"Error fetching member name: {e}")
+        return None
+
+def get_assignee_number(target_month_str, user_name):
+    try:
+        import re
+        match = re.search(r"(\d{1,2})月", target_month_str)
+        if not match:
+            return "00"
+        search_month = match.group(1)
+
+        client = get_connection()
+        spreadsheet = client.open_by_key(ACTIVITY_REPORT_SHEET_ID)
+        sheet = spreadsheet.worksheet("担当者一覧")
+        
+        all_values = sheet.get_all_values()
+        
+        target_row = None
+        for row in all_values[1:]:
+            if str(row[1]).strip() == search_month:
+                target_row = row
+                break
+        
+        if not target_row:
+            return "00"
+            
+        assignees = target_row[2:9]
+        
+        for i, assignee in enumerate(assignees):
+            if assignee.strip().replace(" ", "") == user_name.replace(" ", ""):
+                return f"{i+1:02d}"
+                
+        return "00"
+
+    except Exception as e:
+        logger.error(f"Error getting assignee number: {e}")
+        return "00"

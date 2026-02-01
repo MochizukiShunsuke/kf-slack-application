@@ -9,7 +9,15 @@ from listeners.accounting_view_listener import (
     handle_membership_fee_payment_final_submission,
     handle_other_income_submission
 )
+
 from listeners.rag_view_listener import handle_rag_submission_ack, handle_rag_submission_lazy
+
+from listeners.activity_report_listener import (
+    handle_open_report_modal_ack,
+    handle_open_report_modal_lazy,
+    handle_view_submission_ack,
+    handle_view_submission_lazy
+)
 
 def register_view_router(slack_app):
 
@@ -36,9 +44,20 @@ def register_view_router(slack_app):
     slack_app.view("other_income_submission")(handle_other_income_submission)
 
     ### RAG機能 ###
-    
-    # 1. RAGパーソナルクエスチョン
+
     slack_app.view("rag_question_submission")(
         ack=handle_rag_submission_ack,
         lazy=[handle_rag_submission_lazy]
+    )
+
+    ### 近況活動報告機能 ###
+
+    slack_app.action("open_report_modal_action")(
+        ack=handle_open_report_modal_ack,
+        lazy=[handle_open_report_modal_lazy]
+    )
+    
+    slack_app.view("submit_report_view")(
+        ack=handle_view_submission_ack,
+        lazy=[handle_view_submission_lazy]
     )

@@ -15,7 +15,7 @@ def download_slack_file(client, file_id):
         response = requests.get(url, headers={'Authorization': f'Bearer {token}'})
         if response.status_code == 200:
             return response.content
-        # ステータスコード200以外（Slack側のエラー）の場合
+
         logger.error(f"Slack Download API Error: {response.status_code}")
         return None 
     except Exception:
@@ -54,3 +54,20 @@ def upload_slack_file(channel_id, file_content, title, filename, comment=None):
     except Exception:
         logger.exception("Upload Slack File Error")
         return None
+    
+def publish_home_view(user_id, blocks):
+    print("slack_service.publish_home_view...")
+    try:
+        token = os.environ.get("SLACK_BOT_TOKEN")
+        client = WebClient(token=token)
+        client.views_publish(
+            user_id=user_id,
+            view={
+                "type": "home",
+                "blocks": blocks
+            }
+        )
+        return True
+    except Exception:
+        logger.exception("Publish Home View Error")
+        return False

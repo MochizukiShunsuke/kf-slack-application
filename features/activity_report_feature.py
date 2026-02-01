@@ -42,7 +42,6 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------
 
 def get_cell_width_from_doc(doc, tags):
-    """テンプレート内の指定タグが存在するセルの幅を取得する"""
     widths = {}
     def scan(parent):
         for table in parent.tables:
@@ -57,21 +56,18 @@ def get_cell_width_from_doc(doc, tags):
     return widths
 
 def get_headline_from_filename(filename):
-    """ファイル名からアンダーバー以降を抽出 (例: activity1_大会の様子.jpg -> 大会の様子)"""
     stem = os.path.splitext(filename)[0]
     if "_" in stem:
         return stem.split("_", 1)[1]
     return ""
 
 def get_month_en(month_num):
-    """月の英語名を取得"""
     try:
         return calendar.month_name[int(month_num)]
     except:
         return ""
 
 def resize_image_for_docx(image_bytes):
-    """画像をWord貼り付け用に変換"""
     try:
         img = Image.open(image_bytes)
         output = io.BytesIO()
@@ -88,7 +84,7 @@ def resize_image_for_docx(image_bytes):
 # ---------------------------------------------------------
 
 def run_activity_report_reminder():
-    """担当者への催促"""
+
     try:
         current_month = str(datetime.now().month)
         mentions = get_activity_report_mentions(current_month)
@@ -108,16 +104,11 @@ def run_activity_report_reminder():
         logger.error(f"Reminder Error: {e}")
         raise e
 
-# ---------------------------------------------------------
-# UI/Logic: 報告書生成機能
-# ---------------------------------------------------------
-
 def generate_activity_report(client, channel_id, user_id, target_month):
     temp_file_path = None
     try:
         logger.info(f"Starting report generation for: {target_month}")
-        
-        # 1. 年月の抽出 (テンプレート埋め込み用)
+
         year_str = ""
         month_str = ""
         match = re.search(r"(\d{4})年度(\d{1,2})月", target_month)
@@ -125,8 +116,7 @@ def generate_activity_report(client, channel_id, user_id, target_month):
             year_str = match.group(1)
             month_str = match.group(2)
         else:
-            # フォールバック
-            now = datetime.now() # JSTがあれば JSTで
+            now = datetime.now()
             month = now.month
             if month >= 10:
                 year = now.year + 1
@@ -137,7 +127,6 @@ def generate_activity_report(client, channel_id, user_id, target_month):
         
         month_en = get_month_en(month_str)
 
-        # 2. テンプレート準備
         template_stream = download_file_to_stream(ACTIVITY_REPORT_TEMPLATE_ID)
         doc = DocxTemplate(template_stream)
         
@@ -146,7 +135,6 @@ def generate_activity_report(client, channel_id, user_id, target_month):
         temp_doc_for_measure = Document(template_stream)
         widths = get_cell_width_from_doc(temp_doc_for_measure, tags)
 
-        # 3. コンテキスト初期化
         context = {
             'year_title': year_str,
             'month_title': month_str,
@@ -154,15 +142,8 @@ def generate_activity_report(client, channel_id, user_id, target_month):
             'month_side': month_en
         }
 
-        # 4. 名簿情報の取得
         member_map = get_member_department_map()
-
-        # =========================================================
-        # 5. 親フォルダから対象月のフォルダIDを探す
-        # =========================================================
-        # 原稿用フォルダ
         message_month_folder_id = find_folder_by_name(ACTIVITY_REPORT_MESSAGE_FOLDER_ID, target_month)
-        # 写真用フォルダ
         picture_month_folder_id = find_folder_by_name(ACTIVITY_PICTURE_FOLDER_ID, target_month)
 
         if not message_month_folder_id or not picture_month_folder_id:
@@ -170,9 +151,6 @@ def generate_activity_report(client, channel_id, user_id, target_month):
             send_slack_message(channel=channel_id, text=msg)
             return
 
-        # =========================================================
-        # 6. 原稿ファイルの検索と処理 (対象月フォルダから検索)
-        # =========================================================
         search_query = f"'{message_month_folder_id}' in parents and name contains '原稿' and trashed = false"
         input_files = search_files_with_sort(search_query, limit=7)
 
@@ -183,16 +161,14 @@ def generate_activity_report(client, channel_id, user_id, target_month):
             
             stem = os.path.splitext(fname)[0]
             member_name = stem.split('_')[-1] if "_" in stem else stem
-            
-            # A. 文章
+
             text = ""
             if "wordprocessingml.document" in fmime or fname.endswith(".docx"):
                 stream = download_file_to_stream(fid)
                 text = read_text_from_docx_stream(stream)
             elif "application/vnd.google-apps.document" in fmime:
                 text = export_google_doc_text(fid)
-            
-            # B. 所属
+
             clean_name = member_name.replace(" ", "").replace("　", "")
             department = member_map.get(clean_name, "所属不明")
 
@@ -200,7 +176,6 @@ def generate_activity_report(client, channel_id, user_id, target_month):
             context[f'name{i}'] = member_name
             context[f'department{i}'] = department
 
-            # C. 顔写真 (ここは以前のまま、全員分のフォルダから検索)
             photo_stream = search_image_by_name(MEMBER_PICTURE_FOLDER_ID, member_name)
             if photo_stream:
                 processed_img = resize_image_for_docx(photo_stream)
@@ -214,13 +189,8 @@ def generate_activity_report(client, channel_id, user_id, target_month):
             else:
                 context[f'member{i}'] = ""
 
-        # =========================================================
-        # 7. 活動写真の処理 (対象月フォルダから検索)
-        # =========================================================
         files_in_pic_folder = list_files_in_folder(picture_month_folder_id)
 
-        # 【追加】ここデバッグ用ログを入れてください
-        # ↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓
         found_names = [f['name'] for f in files_in_pic_folder]
         logger.info(f"DEBUG: Found files in picture folder: {found_names}")
 
@@ -248,14 +218,12 @@ def generate_activity_report(client, channel_id, user_id, target_month):
                 context[headline_key] = ""
                 context[img_key] = ""
 
-        # 8. レンダリングと保存
         doc.render(context)
         report_title = f"【金沢大学フォーミュラ研究会】{target_month}近況活動報告書"
         filename = f"{report_title}.docx"
         temp_file_path = f"/tmp/{filename}"
         doc.save(temp_file_path)
 
-        # 9. Upload
         with open(temp_file_path, "rb") as f:
             upload_slack_file(
                 channel_id=channel_id,
