@@ -243,3 +243,37 @@ def upload_image_from_url(folder_id, filename, image_url, token):
     except Exception as e:
         logger.error(f"Upload image error: {e}")
         raise e
+    
+def upload_docx_from_url(folder_id, filename, docx_url, token):
+    if not service: return None
+    try:
+        headers = {"Authorization": f"Bearer {token}"}
+        res = requests.get(docx_url, headers=headers)
+        
+        if res.status_code != 200:
+            logger.error(f"Failed to download docx from Slack: {res.status_code}")
+            return None
+
+        file_metadata = {
+            'name': filename,
+            'parents': [folder_id]
+        }
+        media = MediaIoBaseUpload(
+            io.BytesIO(res.content), 
+            mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document', 
+            resumable=True
+        )
+
+        file = service.files().create(
+            body=file_metadata,
+            media_body=media,
+            fields='id',
+            supportsAllDrives=True
+        ).execute()
+        
+        logger.info(f"Uploaded docx: {file.get('id')}")
+        return file.get('id')
+
+    except Exception as e:
+        logger.error(f"Upload docx error: {e}")
+        raise e

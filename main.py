@@ -19,7 +19,7 @@ from routers.app_home_router import register_app_home_router
 from listeners.jobs_listener import handle_activity_report_job
 
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 
 slack_app = App(
