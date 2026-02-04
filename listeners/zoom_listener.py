@@ -5,25 +5,8 @@ import logging
 from services.openai_service import summarize_text
 from services.slack_service import send_slack_message
 from services.firestore_service import db
-def handle_ingest(request):
-    try:
-        data = request.json
-        meeting_id = data.get("meeting_id", f"meeting_{datetime.date.today().isoformat()}")
-        transcript_text = data.get("text")
 
-        if not transcript_text:
-            return {"status": "error", "message": "No text provided"}, 400
-        
-        db.collection("meetings").document(meeting_id).collection("transcript").add({
-            "text": transcript_text,
-            "timestamp": datetime.datetime.now(datetime.timezone.utc)
-        })
-        return {"status": "success"}, 200
-    except Exception as e:
-        logging.error(f"Ingest Error: {e}")
-        return {"status": "error", "message": str(e)}, 500
-
-def handle_meeting_summary_from_command(ack, command, context):
+def handle_meeting_summary_from_command(ack, command):
     ack("議事録の要約を開始します。完了次第、このチャンネルに投稿します。")
     thread = threading.Thread(target=process_summary_background, args=(command,))
     thread.start()

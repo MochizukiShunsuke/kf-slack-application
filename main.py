@@ -11,7 +11,6 @@ from routers.command_router import register_command_router
 from routers.app_mention_router import register_app_mention_router
 from routers.view_router import register_view_router
 from routers.shortcut_router import register_shortcut_router
-from routers.zoom_router import register_zoom_router
 from routers.reaction_router import register_reaction_router
 from routers.app_home_router import register_app_home_router
 
@@ -39,7 +38,6 @@ def register_listeners(slack_app, flask_app):
     register_app_mention_router(slack_app)
     register_view_router(slack_app)
     register_shortcut_router(slack_app)
-    register_zoom_router(flask_app)
     register_reaction_router(slack_app)
     register_app_home_router(slack_app)
 
