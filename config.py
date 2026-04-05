@@ -3,10 +3,10 @@ import os
 # ===== Environment =====
 ENV = os.environ.get("ENV")
 # ローカル開発などでENV未設定の場合のフォールバックが必要なら修正
-# if ENV not in ("production", "development"):
+# if ENV not in ("prod", "dev"):
 #     raise RuntimeError(f"ENV is not set correctly: {ENV}")
 
-IS_PROD = ENV == "production"
+IS_PROD = ENV == "prod"
 
 # ===== Channel IDs =====
 RAG_CHANNEL_ID = os.environ.get("RAG_CHANNEL_ID")
@@ -32,6 +32,7 @@ ACTIVITY_REPORT_TEMPLATE_ID = os.environ.get("ACTIVITY_REPORT_TEMPLATE_ID")
 MEMBER_PICTURE_FOLDER_ID = os.environ.get("MEMBER_PICTURE_FOLDER_ID")
 ACTIVITY_PICTURE_FOLDER_ID = os.environ.get("ACTIVITY_PICTURE_FOLDER_ID")
 ACTIVITY_REPORT_MESSAGE_FOLDER_ID = os.environ.get("ACTIVITY_REPORT_MESSAGE_FOLDER_ID")
+TIMECARD_SHEET_ID = os.environ.get("TIMECARD_SHEET_ID")
 
 SERVICE_URL = os.environ.get("SERVICE_URL")
 

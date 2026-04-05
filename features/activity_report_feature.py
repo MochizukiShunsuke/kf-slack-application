@@ -19,7 +19,9 @@ from config import (
 
 from services.sheet_service import (
     get_activity_report_mentions,
-    get_member_department_map
+    get_member_department_map,
+    save_reminder_thread_ts,
+    get_reminder_thread_ts
 )
 from services.drive_service import (
     download_file_to_stream,
@@ -83,25 +85,44 @@ def resize_image_for_docx(image_bytes):
 # UI/Logic: 催促機能
 # ---------------------------------------------------------
 
-def run_activity_report_reminder():
-
+def run_activity_report_reminder(remind_type=None):
     try:
-        current_month = str(datetime.now().month)
-        mentions = get_activity_report_mentions(current_month)
+        now = datetime.now()
+        day = now.day
+        year = now.year if now.month >= 10 else now.year
+        target_month = f"{year}年度{now.month}月"
         
+        mentions = get_activity_report_mentions(str(now.month))
         if not mentions:
-            msg = f"今月({current_month}月)の担当者が見つかりませんでした。"
-            send_slack_message(channel=ACTIVITY_REPORT_CHANNEL_ID, text=msg)
-            return msg
-        message = (
-            f"近活の原稿を作成し、提出してください\n"
-            f"{mentions}\n"
-            f"提出期限は25日です"
-        )
-        send_slack_message(channel=ACTIVITY_REPORT_CHANNEL_ID, text=message)
-        return f"Successfully sent reminder to: {mentions}"
+            return f"{target_month}の担当者が見つかりません。"
+
+        is_second = (remind_type == "second") or (remind_type is None and day >= 20)
+
+        if is_second:
+            thread_ts = get_reminder_thread_ts(target_month)
+            message = f"【再送】期限まであと5日です。原稿の進捗はいかがでしょうか？\n{mentions}"
+            send_slack_message(
+                channel=ACTIVITY_REPORT_CHANNEL_ID, 
+                text=message, 
+                thread_ts=thread_ts
+            )
+            return f"Processed second reminder for {target_month}"
+
+        else:
+            message = f"近活の原稿作成をお願いします！提出期限は25日です。\n{mentions}"
+            response = send_slack_message(channel=ACTIVITY_REPORT_CHANNEL_ID, text=message)
+            
+            if response and response.get("ok"):
+                save_reminder_thread_ts(target_month, response["ts"])
+            
+            return f"Processed first reminder for {target_month}"
+
     except Exception as e:
-        logger.error(f"Reminder Error: {e}")
+        logger.error(f"Run Activity Report Reminder Error: {e}")
+        raise e
+
+    except Exception as e:
+        logger.error(f"Run Activity Report Reminder Error: {e}")
         raise e
 
 def generate_activity_report(client, channel_id, user_id, target_month):

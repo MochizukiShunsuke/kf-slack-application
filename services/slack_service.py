@@ -21,20 +21,23 @@ def download_slack_file(client, file_id):
     except Exception:
         logger.exception("Download Slack File Error")
         return None
-    
+
 def send_slack_message(channel, text, blocks=None, thread_ts=None):
     print("slack_service.send_slack_message...")
     try:
         token = os.environ.get("SLACK_BOT_TOKEN")
         client = WebClient(token=token)
+        valid_thread_ts = thread_ts if thread_ts and str(thread_ts).strip() else None
+
         return client.chat_postMessage(
             channel=channel,
             text=text,
             blocks=blocks,
-            thread_ts=thread_ts
+            thread_ts=valid_thread_ts
         )
-    except Exception:
-        logger.exception("Send Slack Message Error")
+    except Exception as e:
+        error_code = getattr(e, "response", {}).get("error", "unknown_error")
+        logger.error(f"Send Slack Message Error: {error_code} (ts: {thread_ts})")
         return None
     
 def upload_slack_file(channel_id, file_content, title, filename, comment=None):

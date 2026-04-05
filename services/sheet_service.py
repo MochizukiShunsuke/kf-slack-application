@@ -1,11 +1,14 @@
 import gspread
 import google.auth
 import logging
+import requests
+import datetime
 
 from config import (
     MEMBER_MANAGER_SHEET_ID,
     ACCOUNTING_SHEET_ID,
-    ACTIVITY_REPORT_SHEET_ID
+    ACTIVITY_REPORT_SHEET_ID,
+    TIMECARD_SHEET_ID
 )
 
 logger = logging.getLogger(__name__)
@@ -317,32 +320,6 @@ def get_activity_report_mentions(month_str):
     except Exception:
         logger.exception("Get Activity Report Mentions Error")
         return None
-
-def get_detailed_member_list():
-    print("sheet_service.get_detailed_member_list...")
-    try:
-        client = get_connection()
-        sheet = client.open_by_key(MEMBER_MANAGER_SHEET_ID).worksheet("Members")
-        all_values = sheet.get_all_values()
-        members = []
-        if len(all_values) > 1:
-            for row in all_values[1:]:
-                name = row[0] if len(row) > 0 else ""
-                part = row[1] if len(row) > 1 else "Unknown"
-                grade = row[2] if len(row) > 2 else ""
-                role = row[3] if len(row) > 3 else ""
-                
-                if name:
-                    members.append({
-                        "name": name,
-                        "part": part,
-                        "grade": grade,
-                        "role": role
-                    })
-        return members
-    except Exception:
-        logger.exception("Get Detailed Member List Error")
-        return []
     
 def get_member_department_map():
     print("sheet_service.get_member_department_map...")
@@ -376,7 +353,7 @@ def get_member_name_from_slack_id(slack_id):
         
         return None
     except Exception as e:
-        logger.error(f"Error fetching member name: {e}")
+        logger.error(f"Get Member Name From Slack ID Error: {e}")
         return None
 
 def get_assignee_number(target_month_str, user_name):
@@ -411,5 +388,58 @@ def get_assignee_number(target_month_str, user_name):
         return "00"
 
     except Exception as e:
-        logger.error(f"Error getting assignee number: {e}")
+        logger.error(f"Getting Assignee Number Error: {e}")
         return "00"
+    
+def save_reminder_thread_ts(month_str, ts):
+    try:
+        client = get_connection()
+        spreadsheet = client.open_by_key(ACTIVITY_REPORT_SHEET_ID)
+        sheet = spreadsheet.worksheet("タイムスタンプ保存用")
+
+        records = sheet.get_all_records()
+        row_idx = -1
+        for i, row in enumerate(records, start=2):
+            if str(row.get("月")) == month_str:
+                row_idx = i
+                break
+        
+        now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        if row_idx != -1:
+            sheet.update(f"B{row_idx}:C{row_idx}", [[ts, now_str]])
+        else:
+            sheet.append_row([month_str, ts, now_str])
+        return True
+    except Exception as e:
+        logger.error(f"Save Reminder Thread TS Error: {e}")
+        return False
+
+def get_reminder_thread_ts(month_str):
+    try:
+        client = get_connection()
+        spreadsheet = client.open_by_key(ACTIVITY_REPORT_SHEET_ID)
+        sheet = spreadsheet.worksheet("タイムスタンプ保存用")
+        records = sheet.get_all_records()
+        
+        for row in records:
+            if str(row.get("月")) == month_str:
+                return str(row.get("タイムスタンプ"))
+        return None
+    except Exception as e:
+        logger.error(f"Get Reminder Thread TS Error: {e}")
+        return None
+    
+
+def add_timecard_log(data: list):
+    print("sheet_service.add_timecard_log...")
+    try:
+        client = get_connection()
+        spreadsheet = client.open_by_key(TIMECARD_SHEET_ID)
+        sheet = spreadsheet.worksheet("log_sheet")
+        
+        # append_rowで最後尾に追加
+        sheet.append_row(data, value_input_option="USER_ENTERED")
+        return True
+    except Exception:
+        logger.exception("Add Timecard Log Error")
+        return False

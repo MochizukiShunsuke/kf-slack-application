@@ -18,18 +18,12 @@ def handle_activity_report_job():
             user_id = data.get("user_id")
             channel_id = data.get("channel_id")
             target_month = data.get("target_month")
-            print(f"jobs_listener.py:{target_month}")
-            
-            logger.info(f"Starting generation job for {user_id}")
-
             generate_activity_report(slack_client, channel_id, user_id, target_month)
-            
             return jsonify({"status": "success", "job": "generation"}), 200
 
         else:
-
-            logger.info("Starting reminder job")
-            result = run_activity_report_reminder()
+            remind_type = data.get("remind_type")
+            result = run_activity_report_reminder(remind_type=remind_type)
             return jsonify({"status": "success", "job": "reminder", "detail": result}), 200
 
     except Exception as e:

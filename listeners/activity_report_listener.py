@@ -36,28 +36,22 @@ JST = timezone(timedelta(hours=9), "JST")
 
 def handle_activity_report_from_command(ack, command, say):
     ack()
-
     try:
         user_id = command["user_id"]
         channel_id = command["channel_id"]
         text = command.get("text", "").strip()
-
         target_label = ""
         match = re.search(r"(\d{4})年度(\d{1,2})月", text)
-
         if match:
             target_label = match.group(0)
         else:
             now = datetime.now(JST)
             month = now.month
-
             if month >= 10:
                 year = now.year + 1
             else:
                 year = now.year
-                
             target_label = f"{year}年度{month}月"
-
         say(f"<@{user_id}> 承知しました。「{target_label}」の近況活動報告書の作成を開始します... ⏳")
 
         if not SERVICE_URL:
@@ -65,16 +59,13 @@ def handle_activity_report_from_command(ack, command, say):
             return
 
         client_tasks = tasks_v2.CloudTasksClient()
-        
         parent = client_tasks.queue_path(GOOGLE_CLOUD_PROJECT, REGION, ACTIVITY_REPORT_QUEUE_NAME)
-
         payload = {
             "type": "generation",
             "user_id": user_id,
             "channel_id": channel_id,
             "target_month": target_label
         }
-
         task = {
             "http_request": {
                 "http_method": tasks_v2.HttpMethod.POST,
@@ -84,7 +75,6 @@ def handle_activity_report_from_command(ack, command, say):
                 "oidc_token": {"service_account_email": SERVICE_ACCOUNT_EMAIL}
             }
         }
-
         client_tasks.create_task(request={"parent": parent, "task": task})
         logger.info(f"Task created for {target_label}")
 
@@ -98,17 +88,14 @@ def handle_open_report_modal_ack(ack):
 
 def handle_open_report_modal_lazy(body, client):
     trigger_id = body["trigger_id"]
-
     now = datetime.now()
     month = now.month
-
     if month >= 10:
         year = now.year + 1
     else:
         year = now.year
         
     target_month = f"{year}年度{month}月"
-
     modal_view = {
         "type": "modal",
         "callback_id": "submit_report_view",
@@ -193,7 +180,6 @@ def handle_open_report_modal_lazy(body, client):
             }
         ]
     }
-    
     client.views_open(trigger_id=trigger_id, view=modal_view)
 
 def handle_view_submission_ack(ack):
@@ -203,12 +189,9 @@ def handle_view_submission_lazy(body, view, client, logger):
     user_id = body["user"]["id"]
     target_month = view["private_metadata"] 
     values = view["state"]["values"]
-
     docx_files = values["text_block"]["content"].get("files")
-    
     activity_num = values["number_block"]["activity_num"]["selected_option"]
     photo_desc = values["desc_block"]["photo_desc"]["value"]
-    
     photo_files = []
     if "photo_block" in values and "photo" in values["photo_block"]:
         if values["photo_block"]["photo"]["files"]:
@@ -222,7 +205,6 @@ def handle_view_submission_lazy(body, view, client, logger):
         user_name = user_info["user"]["real_name"] or user_info["user"]["name"]
 
     number_prefix = get_assignee_number(target_month, user_name)
-
     token = os.environ.get("SLACK_BOT_TOKEN")
     messages = []
 

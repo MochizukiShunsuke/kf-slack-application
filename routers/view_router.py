@@ -19,6 +19,8 @@ from listeners.activity_report_listener import (
     handle_view_submission_lazy
 )
 
+from listeners.timecard_listener import handle_timecard_submission
+
 def register_view_router(slack_app):
 
     ### 会計機能 ###
@@ -61,3 +63,7 @@ def register_view_router(slack_app):
         ack=handle_view_submission_ack,
         lazy=[handle_view_submission_lazy]
     )
+
+    ### タイムカード機能 ###
+
+    slack_app.view("timecard_submission")(handle_timecard_submission)
